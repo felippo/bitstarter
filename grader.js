@@ -28,7 +28,7 @@ var restler = require('restler');
 
 var HTMLFILE_DEFAULT = "index.html";
 var CHECKSFILE_DEFAULT = "checks.json";
-var URL_DEFAULT = "http://sleepy-beach-2707.herokuapp.com/index.html";
+var URL_DEFAULT = "http://sleepy-beach-2707.herokuapp.com";
 
 var assertFileExists = function(infile) {
     var instr = infile.toString();
@@ -52,38 +52,38 @@ var assertURLExists = function(inurl) {
     return instr;
 };
 
-var cheerioHtmlFile = function(htmlfile, sourcetype) {
+var cheerioHtmlFile = function(htmlfile, checksfile, sourcetype) {
     var sourcedata;
 
     if (sourcetype == "file") {
-        sourcedata = fs.readFileSync(htmlfile);
+        checkHtmlFile(cheerio.load(fs.readFileSync(htmlfile)), checksfile);
     } else if (sourcetype == "url") {
         restler.get(htmlfile).on('complete', function(result) {
             if (result instanceof Error) {
                 console.log("%s does not work. Exiting.", instr);
                 process.exit(1);
             } else {
-                //console.log("With URL.");
-                sourcedata = result;
+                //console.log("%s:\n%s", htmlfile, result);
+                checkHtmlFile(cheerio.load(result), checksfile);
             }
         });
     }
-
-    return cheerio.load(sourcedata);
 }
 
 var loadChecks = function(checksfile) {
     return JSON.parse(fs.readFileSync(checksfile));
 };
 
-var checkHtmlFile = function(sourcefile, checksfile, sourcetype) {
-    $ = cheerioHtmlFile(sourcefile, sourcetype);
+var checkHtmlFile = function($, checksfile) {
     var checks = loadChecks(checksfile).sort();
     var out = {};
     for(var ii in checks) {
         var present = $(checks[ii]).length > 0;
         out[checks[ii]] = present;
     }
+    
+    console.log(JSON.stringify(out, null, 4));
+    
     return out;
 };
 
@@ -97,7 +97,7 @@ if(require.main == module) {
     program
         .option('-c, --checks <check_file>', 'Path to checks.json', clone(assertFileExists), CHECKSFILE_DEFAULT)
         .option('-f, --file <html_file>', 'Path to index.html', clone(assertFileExists), null)
-        .option('-u, --url <url>', 'URL to index.html', clone(assertURLExists), null)
+        .option('-u, --url <url>', 'URL to index.html')
         .parse(process.argv);
 
     var datasource;
@@ -111,9 +111,7 @@ if(require.main == module) {
     }
     //console.log(program.url);
 
-    var checkJson = checkHtmlFile(datasource, program.checks, sourcetype);
-    var outJson = JSON.stringify(checkJson, null, 4);
-    console.log(outJson);
+    var checkJson = cheerioHtmlFile(datasource, program.checks, sourcetype);
 } else {
     exports.checkHtmlFile = checkHtmlFile;
 }
